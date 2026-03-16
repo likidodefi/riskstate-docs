@@ -1,0 +1,131 @@
+---
+name: riskstate
+version: 1.1.1
+category: risk-management
+auth: bearer-token
+endpoint: POST /v1/risk-state
+assets: [BTC, ETH]
+refresh: 60s cache, recommend 5min polling
+---
+
+# RiskState — Risk Governor for Crypto Trading Agents
+
+## What it does
+
+Returns **operational risk permissions** for crypto trading.
+A deterministic policy engine computes how much exposure is allowed based on 30+ real-time signals across macro, on-chain, derivatives, and DeFi health.
+
+The response tells you:
+- **max_size_fraction**: Maximum position size as fraction of portfolio (0.0–1.0)
+- **allowed_actions / blocked_actions**: What the agent MAY and MUST NOT do (enum tokens)
+- **risk_flags**: Structural blockers (hard stop) vs contextual risks (reduce conviction)
+- **binding_constraint**: Which cap is limiting and why
+- **policy_level**: 1–5 summary label (informational — use `exposure_policy` for enforcement)
+
+## What it does NOT do
+
+- No trade signals, no entry/exit prices, no predictions
+- No portfolio allocation advice
+- No order execution or routing
+- No historical data or backtesting
+
+This is a **risk governor**, not a trading oracle.
+
+## When to call
+
+- **Before opening or sizing positions** — check permissions first
+- **Periodically during holds** — every 5 min for active trading, every 4h for holding
+- **After significant market moves** — cache invalidates after 60s (`ttl_seconds` in response)
+
+## Binding precedence
+
+When consuming the response, agents MUST evaluate fields in this order:
+
+1. `risk_flags.structural_blockers` — if non-empty, ABORT new entries
+2. `exposure_policy.blocked_actions` — actions the agent MUST NOT take
+3. `exposure_policy.reduce_recommended` — reduce exposure if true
+4. `exposure_policy.max_size_fraction` — maximum position size
+5. `exposure_policy.max_leverage` — maximum leverage allowed
+6. `exposure_policy.direction_bias` — preferred trade direction
+7. `policy_level` — informational summary only, do not use for enforcement
+
+## Decision rules by policy level
+
+| `policy_level` | Summary | Key constraints |
+|----------------|---------|-----------------|
+| 1 (BLOCK Survival) | No new positions | `blocked_actions: [NEW_TRADES, ...]`, `max_leverage: "0x"` |
+| 2 (BLOCK Defensive) | Wait or hedge only | `blocked_actions: [AGGRESSIVE_LONG, ...]`, `max_leverage: "1x"` |
+| 3 (CAUTIOUS) | DCA with R:R >2:1 | `blocked_actions: [LEVERAGE, ALL_IN, ...]`, `max_leverage: "1x"` |
+| 4 (GREEN Selective) | Trade with confirmation | `max_leverage: "1.5x"` |
+| 5 (GREEN Expansion) | Full operations | `max_leverage: "2x"` |
+
+`policy_level` is a convenience label. Always check `exposure_policy` fields for actual constraints.
+
+## Failure modes
+
+| Condition | Agent behavior |
+|-----------|----------------|
+| `stale_fields` contains core indicators (price, funding, rsi) | Downgrade conviction. Data integrity compromised. |
+| `data_quality_score` < 70 | Treat as degraded. Reduce position sizes by 50%. |
+| `data_quality_score` < 50 | Treat as unreliable. Do not open new positions. |
+| `confidence_score` < 0.5 | Signals conflict heavily. Prefer WAIT over action. |
+| HTTP 500 or timeout | Assume worst case (BLOCK). Retry after 60s. |
+| `cached: true` + `stale_fields` non-empty | Re-request after cache TTL (60s) for fresh data. |
+
+## Example request
+
+```bash
+curl -X POST https://your-site.netlify.app/v1/risk-state \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"asset": "BTC", "protocol": "spark"}'
+```
+
+## Example response (minimal)
+
+```json
+{
+  "exposure_policy": {
+    "max_size_fraction": 0.42,
+    "leverage_allowed": false,
+    "max_leverage": "1x",
+    "direction_bias": "LONG_PREFERRED",
+    "reduce_recommended": false,
+    "allowed_actions": ["DCA", "WAIT", "LIGHT_ACCUMULATION", "RR_GT_2"],
+    "blocked_actions": ["LEVERAGE", "AGGRESSIVE_LONG", "ALL_IN"]
+  },
+  "tactical_state": "LEAN BULL",
+  "structural_state": "MID",
+  "macro_state": "NEUTRAL",
+  "market_regime": "TREND",
+  "volatility_regime": "NORMAL",
+  "policy_level": 3,
+  "confidence_score": 0.72,
+  "data_quality_score": 85,
+  "binding_constraint": {
+    "source": "MACRO",
+    "reason": "NEUTRAL × NORMAL",
+    "reason_codes": ["MACRO_NEUTRAL", "COUPLING_NORMAL"],
+    "cap_value": 0.70
+  },
+  "risk_flags": {
+    "structural_blockers": [],
+    "context_risks": ["HIGH_FUNDING"]
+  },
+  "defi": null,
+  "policy_hash": "a1b2c3d4e5f6...",
+  "scoring_version": "score_v1",
+  "version": "1.1.1",
+  "timestamp": "2026-03-13T14:30:00.000Z",
+  "asset": "BTC",
+  "cached": false,
+  "ttl_seconds": 60,
+  "stale_fields": []
+}
+```
+
+## Detailed response
+
+Pass `"include_details": true` in the request body to receive expanded scoring data (composite subscores, positioning intelligence, whale pressure, trend strength, caps breakdown).
+
+See [docs/api-v1.md](docs/api-v1.md) for full API documentation.
