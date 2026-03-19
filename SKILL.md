@@ -1,11 +1,18 @@
 ---
 name: riskstate
 version: 1.1.1
+description: Deterministic risk governance API for autonomous crypto trading agents. Returns position limits, allowed actions, and policy constraints from 30+ real-time signals.
 category: risk-management
 auth: bearer-token
 endpoint: POST /v1/risk-state
 assets: [BTC, ETH]
 refresh: 60s cache, recommend 5min polling
+homepage: https://riskstate.ai
+docs: https://github.com/likidodefi/riskstate-docs
+tags: [defi, risk, governance, trading, crypto, policy, agents, btc, eth, mev-protection, position-sizing]
+pricing: free-beta
+author: RiskState
+license: proprietary
 ---
 
 # RiskState — Risk Governor for Crypto Trading Agents
