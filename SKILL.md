@@ -37,6 +37,14 @@ This is a **risk governor**, not a trading oracle.
 - **Periodically during holds** — every 5 min for active trading, every 4h for holding
 - **After significant market moves** — cache invalidates after 60s (`ttl_seconds` in response)
 
+## Authentication
+
+Request a free API key at [https://riskstate.ai](https://riskstate.ai) (email only). Pass it as a Bearer token:
+
+```
+Authorization: Bearer <your_api_key>
+```
+
 ## Binding precedence
 
 When consuming the response, agents MUST evaluate fields in this order:
@@ -72,13 +80,33 @@ When consuming the response, agents MUST evaluate fields in this order:
 | HTTP 500 or timeout | Assume worst case (BLOCK). Retry after 60s. |
 | `cached: true` + `stale_fields` non-empty | Re-request after cache TTL (60s) for fresh data. |
 
-## Example request
+## Example requests
+
+### Minimal (BTC)
 
 ```bash
-curl -X POST https://your-site.netlify.app/v1/risk-state \
+curl -X POST https://riskstate.netlify.app/v1/risk-state \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"asset": "BTC", "protocol": "spark"}'
+  -d '{"asset": "BTC"}'
+```
+
+### Detailed (with scoring breakdown)
+
+```bash
+curl -X POST https://riskstate.netlify.app/v1/risk-state \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"asset": "BTC", "include_details": true}'
+```
+
+### DeFi monitoring (with wallet)
+
+```bash
+curl -X POST https://riskstate.netlify.app/v1/risk-state \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"asset": "ETH", "wallet": "0xYOUR_WALLET_ADDRESS", "include_details": true}'
 ```
 
 ## Example response (minimal)
@@ -114,7 +142,7 @@ curl -X POST https://your-site.netlify.app/v1/risk-state \
   },
   "defi": null,
   "policy_hash": "a1b2c3d4e5f6...",
-  "scoring_version": "score_v1",
+  "scoring_version": "score_v2",
   "version": "1.1.1",
   "timestamp": "2026-03-13T14:30:00.000Z",
   "asset": "BTC",
@@ -126,6 +154,6 @@ curl -X POST https://your-site.netlify.app/v1/risk-state \
 
 ## Detailed response
 
-Pass `"include_details": true` in the request body to receive expanded scoring data (composite subscores, positioning intelligence, whale pressure, trend strength, caps breakdown).
+Pass `"include_details": true` in the request body to receive expanded scoring data (composite subscores, positioning intelligence, whale pressure, trend strength, caps breakdown). All minimal fields are included plus: `caps`, `positioning`, `volatility`, `whale_pressure`, `trend_strength`, `composite`, `extreme_scores`, `macro_detail`, `data_sources`, and `core_missing`.
 
-See [docs/api-v1.md](docs/api-v1.md) for full API documentation.
+See [docs/api-v1.md](docs/api-v1.md) for full API documentation including all field types, ranges, action enums, risk flags reference, and interpretation guide.

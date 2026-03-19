@@ -11,10 +11,23 @@ POST /v1/risk-state
 All requests require a Bearer token in the `Authorization` header.
 
 ```
-Authorization: Bearer <RISKSTATE_API_KEY>
+Authorization: Bearer <your_api_key>
 ```
 
-The endpoint **fails closed**: if the server secret is not configured, all requests are denied (401).
+### Key types
+
+| Type | Format | Rate limit | Access |
+|------|--------|------------|--------|
+| **Owner** | `RISKSTATE_API_KEY` env var | Unlimited | All endpoints |
+| **External** | `rs_live_` + 64 hex chars | 60 req/min | `/v1/risk-state` + read-only endpoints |
+
+### Getting an API key
+
+Request API access at [https://riskstate.ai](https://riskstate.ai) — only an email is required. You'll receive an `rs_live_` key via email within minutes.
+
+Keys are managed through the `/api/api-keys` admin endpoint (owner-only).
+
+The endpoint **fails closed**: if the server secret is not configured, all requests are denied (401). Rate-limited requests return 429 with `retry_after_seconds: 60`.
 
 ## Request
 
@@ -34,14 +47,36 @@ The endpoint **fails closed**: if the server secret is not configured, all reque
 | `protocol` | string | `"spark"` | DeFi lending protocol. `"spark"` or `"aave"`. Only used when `wallet` is provided. |
 | `include_details` | boolean | `false` | Include expanded scoring details in response. |
 
-### Example
+### Example requests
 
-```json
-{
-  "asset": "BTC",
-  "include_details": true
-}
+**Minimal (BTC):**
+
+```bash
+curl -X POST https://riskstate.netlify.app/v1/risk-state \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"asset": "BTC"}'
 ```
+
+**Detailed (with scoring breakdown):**
+
+```bash
+curl -X POST https://riskstate.netlify.app/v1/risk-state \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"asset": "BTC", "include_details": true}'
+```
+
+**DeFi monitoring (with wallet + Aave):**
+
+```bash
+curl -X POST https://riskstate.netlify.app/v1/risk-state \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"asset": "ETH", "wallet": "0xYOUR_WALLET_ADDRESS", "protocol": "aave", "include_details": true}'
+```
+
+> **Note:** All parameters go inside the `-d` JSON string. The `\` at the end of each line is a shell line continuation — the entire command is one curl call.
 
 ### Validation
 
@@ -89,19 +124,25 @@ Three blocks: **Permissioning**, **Classification**, **Auditability**.
 | `binding_constraint.cap_value` | float | The binding cap's value (0–1) |
 | `risk_flags.structural_blockers` | string[] | Hard blockers — agent MUST pause new entries |
 | `risk_flags.context_risks` | string[] | Soft risks — agent should reduce conviction |
-| `defi` | object\|null | `{ health_factor, ltv, protocol }` if wallet provided, else `null`. `protocol` is `"spark"` or `"aave"`. |
+| `defi` | object\|null | DeFi position data if wallet provided, else `null`. See fields below. |
+| `defi.health_factor` | float | Current health factor (>1 = safe, <1.1 = danger) |
+| `defi.ltv` | float | Current loan-to-value ratio % (debt / collateral × 100). E.g., 35.4 means 35.4% utilized. |
+| `defi.max_ltv` | float | Protocol's maximum LTV threshold % (e.g., 82.99). Borrowing above this is blocked. |
+| `defi.liquidation_threshold` | float | Liquidation threshold % (e.g., 82.5). Position liquidatable above this. |
+| `defi.protocol` | string | `"spark"` or `"aave"` |
 
 ### Auditability
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `policy_hash` | string | SHA-256 hash of policy inputs for non-repudiation |
-| `scoring_version` | string | `"score_v1"` — scoring algorithm version |
-| `version` | string | `"1.1.1"` — API version |
+| `scoring_version` | string | `"score_v2"` — scoring algorithm version |
+| `version` | string | `"1.2.0"` — API version |
 | `timestamp` | string | ISO 8601 timestamp |
 | `asset` | string | Asset evaluated |
 | `cached` | boolean | Whether response was served from cache |
 | `ttl_seconds` | int | Cache TTL in seconds (60). Agent should re-request after this interval for fresh data. |
+| `key_type` | string | `"owner"` or `"external"` — identifies which auth tier was used |
 | `stale_fields` | string[] | Core signals that are missing or stale |
 
 ## Response — Detailed (`include_details=true`)
@@ -136,7 +177,7 @@ All minimal fields plus:
 | `extreme_scores.euphoria` | int | 0–100 euphoria percentile |
 | `eth_structural` | object\|null | ETH structural score (ETH only): `{ overall, label, dataQuality, subfamilies: { network, supply, relative, demand } }` |
 | `eth_downgrade` | object\|null | ETH structural downgrade (ETH only): `{ active, count, hardCount, softCount, severity, signals, capReduction }` |
-| `macro_detail` | object | Full macro data for diagnostics: `{ regime, coupling, couplingSource, realRate10y, liquidityRegime, yield10y, yield2y, spx, spxChange, gold, correlations }` |
+| `macro_detail` | object | Full macro data for diagnostics: `{ regime, coupling, realRate10y, liquidityRegime, yield10y, yield10yChg, spxChangePct, fedBsDelta3m, spread10y2y, riskOffSignals, riskOnSignals, dxy }` |
 | `data_sources` | object | Per-field source status (LIVE/MOCK/CG_FALLBACK/CC_FALLBACK/DEFAULT) |
 | `core_missing` | string[] | Missing core signals |
 
@@ -148,6 +189,7 @@ All minimal fields plus:
 | 400 | `{ "error": "Invalid asset. Must be BTC or ETH." }` | Unknown asset |
 | 400 | `{ "error": "Invalid wallet address format." }` | Bad wallet format |
 | 401 | `{ "error": "Unauthorized" }` | Missing or invalid Bearer token |
+| 429 | `{ "error": "Rate limit exceeded", "retry_after_seconds": 60 }` | External key exceeded 60 req/min |
 | 500 | `{ "error": "Internal server error" }` | Server-side failure |
 
 ## Data Sources & Fallback Chain
@@ -157,7 +199,7 @@ The endpoint fetches from 15+ external APIs in parallel waves. Binance returns H
 | Data | Primary | Fallback | Last Resort |
 |------|---------|----------|-------------|
 | RSI (4h) | Binance klines | CryptoCompare `histohour` | Default 50 |
-| Funding rate | Binance `fundingRate` | CoinGlass `/futures/funding-rate` | Default 0 |
+| Funding rate | Binance `fundingRate` | OKX V5 → Bybit V5 → CoinGlass | Default 0 |
 | Daily klines (200d) | Binance klines | CryptoCompare `histoday` | `null` (trend strength unavailable) |
 | MVRV | blockchain.info | CoinGlass `/indicator/market/mvrv` | Default 1.8 |
 | Real Rate | FRED T10YIE (breakeven) | — | `null` |
@@ -170,15 +212,34 @@ The endpoint fetches from 15+ external APIs in parallel waves. Binance returns H
 
 The `data_sources` field (in detailed response) shows per-field source: `LIVE`, `CC_FALLBACK` (CryptoCompare), `CG_FALLBACK` (CoinGlass), `ESTIMATED` (price-based), `DEFAULT_ZERO`, `DEFAULT`, or `MOCK`.
 
-### Known Data Limitations (v1.1.1)
+### Known Data Limitations (v1.2.0)
 
-Binance returns HTTP 451 from Netlify servers. CoinGlass Hobbyist tier lacks certain endpoints. These cause permanent fallback states for 3 fields:
+Binance returns HTTP 451 from Netlify servers. Current CoinGlass tier lacks certain endpoints. These cause permanent fallback states for some fields:
 
 | Field | Server Status | Impact | Dashboard Comparison |
 |-------|--------------|--------|---------------------|
-| Funding | DEFAULT_ZERO | Neutral value (0) — no scoring distortion | Dashboard gets real data from browser-side Binance |
-| Open Interest | MOCK | Affects squeeze detection and OI z-score only | Dashboard gets real data from browser-side Binance |
+| Funding | OKX or BYBIT fallback | Live data via cascading fallback chain. Neutral default (0) only if all fallbacks fail | Dashboard gets real data from browser-side Binance |
+| Open Interest | OKX or BYBIT fallback | Live data via cascading fallback chain. Affects squeeze detection and OI z-score | Dashboard gets real data from browser-side Binance |
 | MVRV | ESTIMATED (~price/$36K) | Accurate to ±5%. Affects cycle phase near thresholds | Dashboard gets real MVRV from blockchain.info |
+| DXY | LIVE (Frankfurter EUR/USD proxy) | Same formula as dashboard. Affects detectRegime + macro scoring | Dashboard uses same Frankfurter proxy via market-data.js |
+
+### API vs Dashboard Classification Alignment (v1.2.0, Mar 19 2026)
+
+All classification fields now match between API and dashboard for the same market conditions:
+
+| Field | Status | Notes |
+|-------|--------|-------|
+| cycle_phase | Aligned | Full 9-branch BTC classification (was simplified 6-branch) |
+| market_regime | Aligned | DXY fix resolved false BEAR → TREND (was missing Frankfurter call) |
+| macro_state | Aligned | Same macro.js as single source of truth |
+| composite | Aligned | Same scoring-core.js functions |
+| policy_level | Aligned | Same cap computation; DeFi cap differs when API called without wallet |
+
+**Expected deltas** (not bugs — different data availability):
+- **DeFi cap**: API=100% (no wallet) vs dashboard=84% (wallet connected) — pass `wallet` param to API for parity
+- **Whale score**: ~9pt gap — browser computes 9 signals with real-time data; server has fewer
+- **Trend strength**: ~3pt gap — minor data timing/source differences
+- **Quality factor**: ~8pt gap — DeFi cap + subscore spread differences affect conflict_penalty
 
 All other fields (RSI, daily klines, L/S ratio, CVD, ETF, exchange flow, macro, correlations, ETH structural) have working fallback chains.
 
@@ -306,7 +367,10 @@ Where `agent_conviction` is the agent's own confidence (0–1).
 ### Pre-trade check (agent workflow)
 
 ```
-1. POST /v1/risk-state { "asset": "BTC" }
+1. curl -X POST https://riskstate.netlify.app/v1/risk-state \
+     -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"asset": "BTC"}'
 2. If structural_blockers non-empty → ABORT new entries
 3. If blocked_actions contains NEW_TRADES → ABORT new entries
 4. If reduce_recommended → reduce exposure (not necessarily close all)
@@ -320,13 +384,12 @@ Where `agent_conviction` is the agent's own confidence (0–1).
 
 ### DeFi monitoring
 
-```
-POST /v1/risk-state {
-  "asset": "ETH",
-  "wallet": "0xYOUR_WALLET_ADDRESS_HERE",
-  "include_details": true
-}
+```bash
+curl -X POST https://riskstate.netlify.app/v1/risk-state \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"asset": "ETH", "wallet": "0xYOUR_WALLET_ADDRESS_HERE", "include_details": true}'
 ```
 
-The `defi` field will contain `health_factor` and `ltv` from Spark Protocol.
+The `defi` field will contain `health_factor` and `ltv` from Spark Protocol or Aave V3.
 If `binding_constraint.source === "DEFI"`, the DeFi position is the limiting factor.
