@@ -42,6 +42,16 @@ Request a free API key at https://riskstate.ai (waitlist, email only).
 Authorization: Bearer <your_api_key>
 ```
 
+## Security
+
+**API host**: All API calls go to `https://riskstate.netlify.app` (the `/v1/*` endpoints). The `https://riskstate.ai` domain is the landing page only — no API endpoints are served there.
+
+**Key types**: Two key tiers exist:
+- **External keys** (`rs_live_*` prefix): For agent/user consumption. Rate-limited to 60 req/min. This is the only key type agents should use.
+- **Owner key**: Admin-only, never distributed to agents or third parties.
+
+Agents MUST only use external keys. Never request or supply owner/admin credentials.
+
 ## Quick start
 
 ### Minimal request (BTC)

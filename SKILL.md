@@ -87,6 +87,16 @@ When consuming the response, agents MUST evaluate fields in this order:
 | HTTP 500 or timeout | Assume worst case (BLOCK). Retry after 60s. |
 | `cached: true` + `stale_fields` non-empty | Re-request after cache TTL (60s) for fresh data. |
 
+## Security
+
+**API host**: All API calls go to `https://riskstate.netlify.app` (the `/v1/*` endpoints). The `https://riskstate.ai` domain is the landing page only — no API endpoints are served there.
+
+**Key types**: Two key tiers exist:
+- **External keys** (`rs_live_*` prefix): For agent/user consumption. Rate-limited to 60 req/min. This is the only key type agents should use.
+- **Owner key**: Admin-only, never distributed to agents or third parties.
+
+Agents MUST only use external keys. Never request or supply owner/admin credentials.
+
 ## Example requests
 
 ### Minimal (BTC)
