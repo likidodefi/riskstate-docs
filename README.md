@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://riskstate.ai/v1/risk-state"><img src="https://img.shields.io/badge/API-v1.2.0-blue?style=flat-square" alt="API Version" /></a>
+  <a href="https://riskstate.netlify.app/v1/risk-state"><img src="https://img.shields.io/badge/API-v1.2.0-blue?style=flat-square" alt="API Version" /></a>
   <a href="https://riskstate.ai"><img src="https://img.shields.io/badge/status-beta-green?style=flat-square" alt="Status" /></a>
   <a href="#supported-assets"><img src="https://img.shields.io/badge/assets-BTC%20%7C%20ETH-orange?style=flat-square" alt="Assets" /></a>
   <a href="#pricing"><img src="https://img.shields.io/badge/pricing-free%20beta-brightgreen?style=flat-square" alt="Pricing" /></a>
@@ -28,7 +28,7 @@ A deterministic policy engine that tells AI trading agents **how much risk is al
 One API call returns position limits, allowed actions, and policy constraints computed from **30+ real-time signals** across macro, on-chain, derivatives, and DeFi health.
 
 ```bash
-curl -X POST https://riskstate.ai/v1/risk-state \
+curl -X POST https://riskstate.netlify.app/v1/risk-state \
   -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "BTC"}'
@@ -77,7 +77,7 @@ Sign up at [riskstate.ai](https://riskstate.ai) — email only, free during beta
 ### 2. Query the API
 
 ```bash
-curl -X POST https://riskstate.ai/v1/risk-state \
+curl -X POST https://riskstate.netlify.app/v1/risk-state \
   -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "BTC"}'
@@ -89,7 +89,7 @@ curl -X POST https://riskstate.ai/v1/risk-state \
 import requests
 
 policy = requests.post(
-    "https://riskstate.ai/v1/risk-state",
+    "https://riskstate.netlify.app/v1/risk-state",
     headers={"Authorization": f"Bearer {API_KEY}"},
     json={"asset": "BTC"}
 ).json()
@@ -131,7 +131,22 @@ Direct HTTP calls. Any language, any framework.
 Drop [`SKILL.md`](SKILL.md) into your agent's repo. Compatible with Claude Code, Copilot, Cursor, and Gemini via [skills.sh](https://skills.sh).
 
 ### MCP Server
-Coming soon.
+
+```bash
+npm install @riskstate/mcp-server
+```
+
+Or run directly with `npx @riskstate/mcp-server`. Docker: `ghcr.io/likidodefi/riskstate-mcp`.
+
+One tool: `get_risk_policy` — same parameters as the REST API. Compatible with Claude Desktop, Claude Code, Cursor, and any MCP-compatible client. See [MCP README](https://github.com/likidodefi/RiskState/tree/main/mcp) for full setup.
+
+## Listed On
+
+- [awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers) — Finance & Fintech category
+- [LobeHub MCP](https://lobehub.com) — Auto-discovered
+- [ClawHub.ai](https://clawhub.ai) — Skill marketplace
+- [skills.sh](https://skills.sh) — Vercel skills registry
+- [Glama.ai](https://glama.ai) — AAA score
 
 ## Binding Precedence
 
@@ -171,13 +186,14 @@ Paid tiers coming after beta. [Sign up now](https://riskstate.ai) to lock in ear
 
 - [**API Reference**](docs/api-v1.md) — Full endpoint documentation, field types, error codes
 - [**SKILL.md**](SKILL.md) — Agent discovery file with decision rules and failure modes
+- [**Changelog**](CHANGELOG.md) — Version history and release notes
 - [**Website**](https://riskstate.ai) — Landing page with interactive examples
 
 ## Links
 
 - Website: [riskstate.ai](https://riskstate.ai)
 - X/Twitter: [@riskstate_ai](https://x.com/riskstate_ai)
-- API: `POST https://riskstate.ai/v1/risk-state`
+- API: `POST https://riskstate.netlify.app/v1/risk-state`
 
 ---
 
