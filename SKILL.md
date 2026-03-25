@@ -1,10 +1,11 @@
 ---
 name: riskstate
-version: 1.1.1
+version: 1.2.0
 description: Deterministic risk governance API for autonomous crypto trading agents. Returns position limits, allowed actions, and policy constraints from 30+ real-time signals.
 category: risk-management
 auth: bearer-token
-endpoint: POST /v1/risk-state
+env: RISKSTATE_API_KEY
+endpoint: POST https://riskstate.netlify.app/v1/risk-state
 assets: [BTC, ETH]
 refresh: 60s cache, recommend 5min polling
 homepage: https://riskstate.ai
@@ -103,7 +104,7 @@ Agents MUST only use external keys. Never request or supply owner/admin credenti
 
 ```bash
 curl -X POST https://riskstate.netlify.app/v1/risk-state \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "BTC"}'
 ```
@@ -112,7 +113,7 @@ curl -X POST https://riskstate.netlify.app/v1/risk-state \
 
 ```bash
 curl -X POST https://riskstate.netlify.app/v1/risk-state \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "BTC", "include_details": true}'
 ```
@@ -121,7 +122,7 @@ curl -X POST https://riskstate.netlify.app/v1/risk-state \
 
 ```bash
 curl -X POST https://riskstate.netlify.app/v1/risk-state \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "ETH", "wallet": "0xYOUR_WALLET_ADDRESS", "include_details": true}'
 ```
@@ -160,7 +161,7 @@ curl -X POST https://riskstate.netlify.app/v1/risk-state \
   "defi": null,
   "policy_hash": "a1b2c3d4e5f6...",
   "scoring_version": "score_v2",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "timestamp": "2026-03-13T14:30:00.000Z",
   "asset": "BTC",
   "cached": false,
