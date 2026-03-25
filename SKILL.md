@@ -9,7 +9,7 @@ assets: [BTC, ETH]
 refresh: 60s cache, recommend 5min polling
 homepage: https://riskstate.ai
 docs: https://github.com/likidodefi/riskstate-docs
-tags: [defi, risk, governance, trading, crypto, policy, agents, btc, eth, mev-protection, position-sizing]
+tags: [crypto, ai, bitcoin, trading, ethereum, trading-bot, agents, policy-engine, ai-agents, defi, decentralized-finance, ai-trading, agent-skills, defi-risk-management, risk-governance, skills-sh]
 pricing: free-beta
 author: RiskState
 license: proprietary
