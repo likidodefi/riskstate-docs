@@ -137,7 +137,7 @@ Three blocks: **Permissioning**, **Classification**, **Auditability**.
 |-------|------|-------------|
 | `policy_hash` | string | SHA-256 hash of policy inputs for non-repudiation |
 | `scoring_version` | string | `"score_v2"` — scoring algorithm version |
-| `version` | string | `"1.2.0"` — API version |
+| `version` | string | `"1.2.1"` — API version |
 | `timestamp` | string | ISO 8601 timestamp |
 | `asset` | string | Asset evaluated |
 | `cached` | boolean | Whether response was served from cache |

@@ -1,6 +1,6 @@
 ---
 name: riskstate
-version: 1.2.0
+version: 1.2.1
 description: Deterministic risk governance API for autonomous crypto trading agents. Returns position limits, allowed actions, and policy constraints from 30+ real-time signals.
 category: risk-management
 auth: bearer-token
@@ -161,7 +161,7 @@ curl -X POST https://riskstate.netlify.app/v1/risk-state \
   "defi": null,
   "policy_hash": "a1b2c3d4e5f6...",
   "scoring_version": "score_v2",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "timestamp": "2026-03-13T14:30:00.000Z",
   "asset": "BTC",
   "cached": false,
