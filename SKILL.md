@@ -1,6 +1,6 @@
 ---
 name: riskstate
-version: 1.2.1
+version: 1.2.2
 description: Deterministic risk governance API for autonomous crypto trading agents. Returns position limits, allowed actions, and policy constraints from 30+ real-time signals.
 category: risk-management
 auth: bearer-token
@@ -47,10 +47,10 @@ This is a **risk governor**, not a trading oracle.
 
 ## Authentication
 
-Request a free API key at [https://riskstate.ai](https://riskstate.ai) (email only). Pass it as a Bearer token:
+Request a free API key at [https://riskstate.ai](https://riskstate.ai) (email only). You will receive a key with the `rs_live_` prefix. Set it as the `RISKSTATE_API_KEY` environment variable and pass it as a Bearer token:
 
 ```
-Authorization: Bearer <your_api_key>
+Authorization: Bearer $RISKSTATE_API_KEY
 ```
 
 ## Binding precedence
@@ -92,11 +92,7 @@ When consuming the response, agents MUST evaluate fields in this order:
 
 **API host**: All API calls go to `https://riskstate.netlify.app` (the `/v1/*` endpoints). The `https://riskstate.ai` domain is the landing page only — no API endpoints are served there.
 
-**Key types**: Two key tiers exist:
-- **External keys** (`rs_live_*` prefix): For agent/user consumption. Rate-limited to 60 req/min. This is the only key type agents should use.
-- **Owner key**: Admin-only, never distributed to agents or third parties.
-
-Agents MUST only use external keys. Never request or supply owner/admin credentials.
+**API keys**: All keys have the `rs_live_` prefix and are rate-limited to 60 req/min. Store your key in the `RISKSTATE_API_KEY` environment variable. Do not hardcode keys in source code.
 
 ## Example requests
 
@@ -161,7 +157,7 @@ curl -X POST https://riskstate.netlify.app/v1/risk-state \
   "defi": null,
   "policy_hash": "a1b2c3d4e5f6...",
   "scoring_version": "score_v2",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "timestamp": "2026-03-13T14:30:00.000Z",
   "asset": "BTC",
   "cached": false,
