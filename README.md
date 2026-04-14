@@ -5,13 +5,15 @@
 <h1 align="center">RiskState</h1>
 
 <p align="center">
-  <strong>Risk governance API for autonomous crypto trading agents</strong>
+  <strong>Pre-trade risk API for crypto — BTC/USD and ETH/USD exposure governance</strong><br />
+  <sub>For trading agents, open-source systems, and capital desks. Spot and perpetual futures (perps). DeFi borrowing aware.</sub>
 </p>
 
 <p align="center">
   <a href="https://riskstate.netlify.app/v1/risk-state"><img src="https://img.shields.io/badge/API-v1.2.0-blue?style=flat-square" alt="API Version" /></a>
   <a href="https://riskstate.ai"><img src="https://img.shields.io/badge/status-beta-green?style=flat-square" alt="Status" /></a>
-  <a href="#supported-assets"><img src="https://img.shields.io/badge/assets-BTC%20%7C%20ETH-orange?style=flat-square" alt="Assets" /></a>
+  <a href="#supported-assets"><img src="https://img.shields.io/badge/assets-BTC%2FUSD%20%7C%20ETH%2FUSD-orange?style=flat-square" alt="Assets" /></a>
+  <a href="#markets"><img src="https://img.shields.io/badge/markets-spot%20%7C%20perps%20%7C%20DeFi-purple?style=flat-square" alt="Markets" /></a>
   <a href="#pricing"><img src="https://img.shields.io/badge/pricing-free%20beta-brightgreen?style=flat-square" alt="Pricing" /></a>
 </p>
 
@@ -23,9 +25,9 @@
 
 ## What is RiskState?
 
-A deterministic policy engine that tells AI trading agents **how much risk is allowed** — not what to trade.
+A deterministic engine that converts live market state into **dynamic risk permissions** — exposure limits, leverage caps, and allowed actions — before capital is deployed.
 
-One API call returns position limits, allowed actions, and policy constraints computed from **30+ real-time signals** across macro, on-chain, derivatives, and DeFi health.
+One API call returns position limits, allowed actions, and policy constraints computed from **30+ real-time signals** across macro, on-chain, derivatives, and DeFi health. The assessment is **USD-denominated**: all scoring is based on BTC/USD and ETH/USD price action, derivatives, and macro conditions.
 
 ```bash
 curl -X POST https://riskstate.netlify.app/v1/risk-state \
@@ -54,18 +56,18 @@ curl -X POST https://riskstate.netlify.app/v1/risk-state \
 }
 ```
 
-Your agent reads `max_size_fraction`, checks `structural_blockers`, and acts. No parsing. No interpretation.
+Read `max_size_fraction`, check `structural_blockers`, and act. No parsing. No interpretation.
 
 ## Why?
 
-Autonomous trading agents can execute trades. None of them know when to **stop**.
+Whether you run an AI trading agent, a systematic trading system, or a manual desk — crypto markets have regime shifts that require adaptive risk governance. Static rules fail. RiskState provides a **pre-trade risk check** that adapts every 60 seconds.
 
 | Without governance | With RiskState |
 |---|---|
-| Agent sizes position based on signal confidence | Agent caps position at `max_size_fraction` |
+| Position size based on signal confidence alone | Capped at `max_size_fraction` (max notional exposure) |
 | No awareness of macro regime | `RISK-OFF` → `blocked_actions: ["AGGRESSIVE_LONG"]` |
 | DeFi health factor ignored | Wallet health feeds directly into position limit |
-| Leverage unbounded | `max_leverage: "1x"` enforced per policy level |
+| Leverage unbounded | Policy-level constraints enforced |
 | No circuit breaker | `structural_blockers` non-empty → halt |
 
 ## Quick Start
@@ -83,7 +85,9 @@ curl -X POST https://riskstate.netlify.app/v1/risk-state \
   -d '{"asset": "BTC"}'
 ```
 
-### 3. Enforce in your agent
+### 3. Enforce before execution
+
+**In an AI trading agent (Python):**
 
 ```python
 import requests
@@ -98,13 +102,44 @@ policy = requests.post(
 if policy["risk_flags"]["structural_blockers"]:
     return  # Do not trade
 
-# Size cap
+# Size cap — max notional exposure as fraction of portfolio
 max_size = policy["exposure_policy"]["max_size_fraction"]
 position_size = min(desired_size, portfolio_value * max_size)
 
 # Action filter
 if "LEVERAGE" in policy["exposure_policy"]["blocked_actions"]:
     leverage = 1.0
+```
+
+**In a trading system (pre-trade check):**
+
+```python
+# Before placing a spot or perps order
+policy = fetch_riskstate("ETH")
+
+if policy["risk_flags"]["structural_blockers"]:
+    log("BLOCKED: structural risk — skipping order")
+    return
+
+max_notional = portfolio_value * policy["exposure_policy"]["max_size_fraction"]
+# Spot: max_notional is the $ amount to deploy
+# Perps: max_notional is the notional exposure cap
+#   e.g., at 10x leverage → margin = max_notional / 10
+```
+
+**Manual pre-trade check (curl):**
+
+```bash
+# Quick check before placing an order on Binance/Hyperliquid/Aave
+curl -s -X POST https://riskstate.netlify.app/v1/risk-state \
+  -H "Authorization: Bearer $RISKSTATE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"asset": "BTC"}' | jq '{
+    policy_level, 
+    max_size: .exposure_policy.max_size_fraction,
+    blocked: .exposure_policy.blocked_actions,
+    blockers: .risk_flags.structural_blockers
+  }'
 ```
 
 ## Policy Levels
@@ -119,8 +154,22 @@ if "LEVERAGE" in policy["exposure_policy"]["blocked_actions"]:
 
 ## Supported Assets
 
-- **BTC** — Full signal coverage (30+ indicators)
-- **ETH** — Full coverage including ETH structural score, ETH/BTC ratio analysis, staking dynamics
+- **BTC/USD** — Full signal coverage (30+ indicators). Scoring based on BTC/USDT price, derivatives, and macro conditions.
+- **ETH/USD** — Full coverage including ETH structural score, ETH/BTC ratio analysis, staking dynamics, ETH/NASDAQ correlation.
+
+> **Note:** The assessment is USD-denominated. If you trade non-USD pairs (e.g., BTC/EUR, ETH/BTC), additional cross-rate risk is not covered.
+
+## Markets
+
+RiskState evaluates the same underlying market conditions regardless of where you trade. The risk assessment applies to:
+
+| Market | How to use the output |
+|--------|----------------------|
+| **Spot** | `max_size_fraction` = % of portfolio to deploy. Leverage fields are not applicable. |
+| **Perpetual futures (perps)** | `max_size_fraction` = max notional exposure as % of portfolio. At 10x leverage, your margin is `max_size_fraction / 10`. Derivatives signals (funding rate, basis, OI, squeeze risk) are especially relevant. |
+| **DeFi borrowing** | Pass your `wallet` address for health factor and liquidation-aware risk caps. `max_leverage` reflects borrowing ratio (LTV). |
+
+The API returns the same response for all markets — the difference is how you **interpret** the output. See [API Reference → How to Use by Context](docs/api-v1.md#how-to-use-by-context) for detailed workflows.
 
 ## Integration Paths
 

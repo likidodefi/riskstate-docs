@@ -1,6 +1,6 @@
 ---
 name: riskstate
-description: Deterministic risk governance API for crypto trading agents. Returns position size limits, allowed/blocked actions, and policy constraints computed from 30+ real-time market signals. Use when an agent needs to check how much risk is allowed before opening, sizing, or managing crypto positions (BTC, ETH).
+description: Pre-trade risk API for crypto trading agents. Returns exposure limits, allowed/blocked actions, and policy constraints for BTC/USD and ETH/USD from 30+ real-time signals. Spot, perpetual futures (perps), and DeFi borrowing aware. Use when an agent needs to check how much risk is allowed before deploying capital.
 license: Proprietary
 compatibility: Requires network access to riskstate.netlify.app. Works with any agent that can make HTTP POST requests.
 metadata:
@@ -9,14 +9,14 @@ metadata:
   homepage: "https://riskstate.ai"
 ---
 
-# RiskState — Risk Governor for Crypto Trading Agents
+# RiskState — Pre-Trade Risk Layer for Crypto
 
 ## What it does
 
-Returns **operational risk permissions** for crypto trading. A deterministic policy engine computes how much exposure is allowed based on 30+ real-time signals across macro, on-chain, derivatives, and DeFi health.
+Returns **dynamic risk permissions** for BTC/USD and ETH/USD before capital is deployed. A deterministic policy engine computes how much exposure is allowed based on 30+ real-time signals across macro, on-chain, derivatives, and DeFi health. Applicable to **spot**, **perpetual futures (perps)**, and **DeFi borrowing**.
 
 The response tells you:
-- **max_size_fraction**: Maximum position size as fraction of portfolio (0.0-1.0)
+- **max_size_fraction**: Maximum exposure as fraction of portfolio (0.0-1.0). For spot: amount to deploy. For perps: max notional exposure.
 - **allowed_actions / blocked_actions**: What the agent MAY and MUST NOT do
 - **risk_flags**: Structural blockers (hard stop) vs contextual risks (reduce conviction)
 - **binding_constraint**: Which cap is limiting and why
@@ -26,7 +26,7 @@ The response tells you:
 - No trade signals, no entry/exit prices, no predictions
 - No order execution or routing
 
-This is a **risk governor**, not a trading oracle.
+This is a **risk governor**, not a trading oracle. The assessment is USD-denominated.
 
 ## When to call
 

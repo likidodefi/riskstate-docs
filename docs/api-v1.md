@@ -1,5 +1,9 @@
 # RiskState API v1 Documentation
 
+Pre-trade risk permissions for BTC/USD and ETH/USD. Spot, perpetual futures (perps), and DeFi borrowing aware.
+
+> **USD-denominated:** All scoring is based on BTC/USD and ETH/USD price action, derivatives, and macro conditions. If you trade non-USD pairs (e.g., BTC/EUR, ETH/BTC), additional cross-rate risk is not covered by this API.
+
 ## Endpoint
 
 ```
@@ -95,7 +99,7 @@ Three blocks: **Permissioning**, **Classification**, **Auditability**.
 |-------|------|-------------|
 | `exposure_policy.max_size_fraction` | float (0–1) | Maximum position size as fraction of portfolio |
 | `exposure_policy.leverage_allowed` | boolean | Whether leverage is permitted |
-| `exposure_policy.max_leverage` | string | Maximum leverage (`"0x"`, `"1x"`, `"1.5x"`, `"2x"`) |
+| `exposure_policy.max_leverage` | string | Maximum leverage for DeFi borrowing (`"0x"`, `"1x"`, `"1.5x"`, `"2x"`). For perps, use `max_size_fraction` as notional cap instead. |
 | `exposure_policy.direction_bias` | string | `"LONG_PREFERRED"`, `"SHORT_PREFERRED"`, or `"NEUTRAL"` |
 | `exposure_policy.reduce_recommended` | boolean | Agent should reduce exposure |
 | `exposure_policy.allowed_actions` | string[] | Actions the agent MAY take (enum tokens, see reference below) |
@@ -337,15 +341,111 @@ All other fields (RSI, daily klines, L/S ratio, CVD, ETF, exchange flow, macro, 
 | `STAKING_HEADWIND` | Real rate > ETH staking APR (ETH only) |
 | `LIQUIDATION_ASYMMETRY` | >75% of liquidations on one side |
 
-## Interpretation Guide for Agents
+## How to Use by Context
+
+The API returns the same response regardless of how you trade. The **market conditions assessment** (composite score, regime, policy level) is identical. What changes is how you **interpret the risk permissions** for your specific context.
+
+### Spot Trading (BTC/USD or ETH/USD)
+
+You are buying or selling the asset on a spot exchange (Coinbase, Binance Spot, Kraken, Uniswap, CoW Swap).
+
+**Key fields:**
+- `max_size_fraction` → **% of portfolio to deploy.** If 0.33, allocate up to 33% of your portfolio to this position.
+- `direction_bias` → `LONG_PREFERRED` means "buy signal." `SHORT_PREFERRED` means "don't buy / consider selling." `NEUTRAL` means "no directional edge."
+- `structural_blockers` → If non-empty, do not buy.
+- `allowed_actions` / `blocked_actions` → Filter for relevant actions (DCA, WAIT, LIGHT_ACCUMULATION).
+
+**Ignore for spot:** `max_leverage`, `leverage_allowed`, and leverage-related blocked actions (`LEVERAGE_GT_1X`, `LEVERAGE_GT_2X`). These apply to leveraged markets and DeFi borrowing.
+
+**Pre-trade workflow:**
+1. Call the API with `{"asset": "BTC"}`
+2. Check `structural_blockers` — if non-empty, do not enter
+3. Read `max_size_fraction` — this is your max allocation
+4. Check `direction_bias` — respect the directional guidance
+5. Proceed to your exchange and place the spot order
+
+### Perpetual Futures (Perps)
+
+You are trading BTC/USDT or ETH/USDT perpetuals on Binance Futures, Hyperliquid, dYdX, Bybit, or similar venues.
+
+**Key fields:**
+- `max_size_fraction` → **Max notional exposure as % of portfolio.** If 0.33 and your portfolio is $100K, your max notional is $33K. At 10x leverage, that means max $3.3K margin.
+- `direction_bias` → Directly actionable: `LONG_PREFERRED` favors longs, `SHORT_PREFERRED` favors shorts.
+- `structural_blockers` → If `SQUEEZE_RISK` is present, **do not open leveraged positions** — liquidation risk is elevated.
+
+**Especially relevant for perps (in detailed response):**
+- `positioning.funding_percentile` → How extreme the current funding rate is vs. 30 days. P>85 = paying heavy carry on longs. P<15 = shorts are crowded.
+- `positioning.basis_pct` → Perp-spot premium. Positive = longs dominant, negative = discount.
+- `positioning.squeeze_direction` → UPSIDE (short squeeze probable) or DOWNSIDE (long squeeze probable).
+- `positioning.oi_zscore` → OI z-score vs. 30 days. >2.0 = excessive leverage in the market.
+
+**Margin guide (from `max_size_fraction`):**
+
+| Your leverage | Max margin (% of portfolio) | Example ($100K portfolio, max_size=0.33) |
+|---------------|----------------------------|------------------------------------------|
+| 3x | max_size / 3 = 11.0% | $11,000 margin |
+| 5x | max_size / 5 = 6.6% | $6,600 margin |
+| 10x | max_size / 10 = 3.3% | $3,300 margin |
+| 25x | max_size / 25 = 1.3% | $1,300 margin |
+
+> **Note:** RiskState does not impose a leverage cap for perpetual futures. The `max_leverage` field reflects DeFi borrowing constraints (see below). For perps, the binding constraint is `max_size_fraction` as max notional exposure — you choose your own leverage within that cap.
+
+**Pre-trade workflow (e.g., Hyperliquid):**
+1. Call the API with `{"asset": "BTC", "include_details": true}`
+2. Check `structural_blockers` — if `SQUEEZE_RISK` present, do not open leveraged positions
+3. Read `max_size_fraction` — this is your max notional as % of portfolio
+4. Divide by your intended leverage to get max margin
+5. Check `positioning.funding_percentile` — if P>85, longs are paying heavy carry
+6. Check `positioning.squeeze_direction` — if DOWNSIDE, longs are at risk
+7. Respect `direction_bias` for trade direction
+8. Place your order on the venue
+
+### DeFi Borrowing (Aave, Spark, Morpho)
+
+You borrow stablecoins against BTC or ETH collateral on-chain.
+
+**Key fields:**
+- `max_size_fraction` → **% of collateral to deploy.** Accounts for your current health factor.
+- `max_leverage` → Borrowing ratio cap: `"0x"` (don't borrow), `"1x"`, `"1.5x"`, `"2x"`.
+- `defi.health_factor` → Current health factor (>1 safe, <1.1 danger).
+- `defi.ltv` → Current loan-to-value ratio.
+- `binding_constraint.source` → If `"DEFI"`, your on-chain position is the limiting factor.
+
+**Pre-trade workflow:**
+1. Call the API with `{"asset": "ETH", "wallet": "0xYOUR_WALLET", "protocol": "aave"}`
+2. Check `defi.health_factor` — if <1.5, prioritize adding collateral
+3. If `binding_constraint.source === "DEFI"`, do not increase debt
+4. Respect `max_leverage` for borrowing ratio
+5. If `structural_blockers` contains `DEFI_LIQUIDATION_RISK`, reduce position immediately
+
+### AI Trading Agent Integration
+
+You are building an autonomous trading agent (Hermes, ElizaOS, OpenClaw, AgentKit, custom) that calls the API programmatically.
+
+**See [SKILL.md](SKILL.md) for the complete agent integration guide**, including:
+- Binding precedence (evaluation order for response fields)
+- Decision rules by policy level
+- Failure modes and conservative fallback behavior
+- Example requests
+
+**Key principle:** Call the API **between decision and execution**. Your agent decides what to trade (intelligence layer). RiskState tells it **how much** it can risk (governance layer). Then the agent executes within those bounds.
+
+## Interpretation Guide
 
 ### Position Sizing
 
+**Spot:**
 ```
-position_size = portfolio_value × max_size_fraction × agent_conviction
+position_size = portfolio_value × max_size_fraction × conviction
 ```
 
-Where `agent_conviction` is the agent's own confidence (0–1).
+**Perps:**
+```
+max_notional = portfolio_value × max_size_fraction × conviction
+margin = max_notional / leverage
+```
+
+Where `conviction` is your own confidence factor (0–1), whether human or algorithmic.
 
 ### Re-consultation Frequency
 

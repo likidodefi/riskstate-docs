@@ -1,7 +1,7 @@
 ---
 name: riskstate
 version: 1.2.2
-description: Deterministic risk governance API for autonomous crypto trading agents. Returns position limits, allowed actions, and policy constraints from 30+ real-time signals.
+description: Pre-trade risk API for crypto trading agents. Returns exposure limits, allowed actions, and policy constraints for BTC/USD and ETH/USD from 30+ real-time signals. Spot, perpetual futures (perps), and DeFi borrowing aware.
 category: risk-management
 auth: bearer-token
 env: RISKSTATE_API_KEY
@@ -10,22 +10,22 @@ assets: [BTC, ETH]
 refresh: 60s cache, recommend 5min polling
 homepage: https://riskstate.ai
 docs: https://github.com/likidodefi/riskstate-docs
-tags: [crypto, ai, bitcoin, trading, ethereum, trading-bot, agents, policy-engine, ai-agents, defi, decentralized-finance, ai-trading, agent-skills, defi-risk-management, risk-governance, skills-sh]
+tags: [crypto, ai, bitcoin, trading, ethereum, trading-bot, agents, policy-engine, ai-agents, defi, decentralized-finance, ai-trading, agent-skills, defi-risk-management, risk-governance, skills-sh, perpetual-futures, perps, spot-trading, btc-usd, eth-usd]
 pricing: free-beta
 author: RiskState
 license: proprietary
 ---
 
-# RiskState — Risk Governor for Crypto Trading Agents
+# RiskState — Pre-Trade Risk Layer for Crypto
 
 ## What it does
 
-Returns **operational risk permissions** for crypto trading.
-A deterministic policy engine computes how much exposure is allowed based on 30+ real-time signals across macro, on-chain, derivatives, and DeFi health.
+Returns **dynamic risk permissions** for BTC/USD and ETH/USD before capital is deployed.
+A deterministic policy engine computes how much exposure is allowed based on 30+ real-time signals across macro, on-chain, derivatives, and DeFi health. Applicable to **spot**, **perpetual futures (perps)**, and **DeFi borrowing**.
 
 The response tells you:
-- **max_size_fraction**: Maximum position size as fraction of portfolio (0.0–1.0)
-- **allowed_actions / blocked_actions**: What the agent MAY and MUST NOT do (enum tokens)
+- **max_size_fraction**: Maximum exposure as fraction of portfolio (0.0–1.0). For spot: amount to deploy. For perps: max notional exposure (divide by your leverage for margin).
+- **allowed_actions / blocked_actions**: What MAY and MUST NOT be done (enum tokens)
 - **risk_flags**: Structural blockers (hard stop) vs contextual risks (reduce conviction)
 - **binding_constraint**: Which cap is limiting and why
 - **policy_level**: 1–5 summary label (informational — use `exposure_policy` for enforcement)
@@ -37,7 +37,7 @@ The response tells you:
 - No order execution or routing
 - No historical data or backtesting
 
-This is a **risk governor**, not a trading oracle.
+This is a **risk governor**, not a trading oracle. The assessment is USD-denominated.
 
 ## When to call
 

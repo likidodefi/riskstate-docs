@@ -1,5 +1,9 @@
 # RiskState API v1 Documentation
 
+Pre-trade risk permissions for BTC/USD and ETH/USD. Spot, perpetual futures (perps), and DeFi borrowing aware.
+
+> **USD-denominated:** All scoring is based on BTC/USD and ETH/USD price action, derivatives, and macro conditions. If you trade non-USD pairs (e.g., BTC/EUR, ETH/BTC), additional cross-rate risk is not covered by this API.
+
 ## Endpoint
 
 ```
@@ -95,7 +99,7 @@ Three blocks: **Permissioning**, **Classification**, **Auditability**.
 |-------|------|-------------|
 | `exposure_policy.max_size_fraction` | float (0–1) | Maximum position size as fraction of portfolio |
 | `exposure_policy.leverage_allowed` | boolean | Whether leverage is permitted |
-| `exposure_policy.max_leverage` | string | Maximum leverage (`"0x"`, `"1x"`, `"1.5x"`, `"2x"`) |
+| `exposure_policy.max_leverage` | string | Maximum leverage for DeFi borrowing (`"0x"`, `"1x"`, `"1.5x"`, `"2x"`). For perps, use `max_size_fraction` as notional cap instead. |
 | `exposure_policy.direction_bias` | string | `"LONG_PREFERRED"`, `"SHORT_PREFERRED"`, or `"NEUTRAL"` |
 | `exposure_policy.reduce_recommended` | boolean | Agent should reduce exposure |
 | `exposure_policy.allowed_actions` | string[] | Actions the agent MAY take (enum tokens, see reference below) |
@@ -337,15 +341,34 @@ All other fields (RSI, daily klines, L/S ratio, CVD, ETF, exchange flow, macro, 
 | `STAKING_HEADWIND` | Real rate > ETH staking APR (ETH only) |
 | `LIQUIDATION_ASYMMETRY` | >75% of liquidations on one side |
 
-## Interpretation Guide for Agents
+## How to Use by Context
+
+The API returns the same response regardless of market type. What changes is how you interpret the risk permissions:
+
+| Market | `max_size_fraction` means | `max_leverage` means | Key detailed fields |
+|--------|--------------------------|----------------------|---------------------|
+| **Spot** | % of portfolio to deploy | N/A (ignore) | `direction_bias`, `structural_blockers` |
+| **Perps** | Max notional exposure as % of portfolio. Divide by your leverage for margin. | N/A for perps (DeFi only) | `positioning.funding_percentile`, `positioning.squeeze_direction`, `positioning.basis_pct` |
+| **DeFi borrowing** | % of collateral to deploy | Borrowing ratio cap | `defi.health_factor`, `defi.ltv`, `binding_constraint.source` |
+
+> For full context-specific workflows (spot, perps, DeFi, agent integration), see the [main API docs](https://github.com/likidodefi/riskstate-docs/blob/main/docs/api-v1.md#how-to-use-by-context).
+
+## Interpretation Guide
 
 ### Position Sizing
 
+**Spot:**
 ```
-position_size = portfolio_value × max_size_fraction × agent_conviction
+position_size = portfolio_value × max_size_fraction × conviction
 ```
 
-Where `agent_conviction` is the agent's own confidence (0–1).
+**Perps:**
+```
+max_notional = portfolio_value × max_size_fraction × conviction
+margin = max_notional / leverage
+```
+
+Where `conviction` is your own confidence factor (0–1), whether human or algorithmic.
 
 ### Re-consultation Frequency
 
