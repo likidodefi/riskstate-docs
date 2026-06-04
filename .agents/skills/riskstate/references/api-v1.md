@@ -56,7 +56,7 @@ The endpoint **fails closed**: if the server secret is not configured, all reque
 **Minimal (BTC):**
 
 ```bash
-curl -X POST https://riskstate.netlify.app/v1/risk-state \
+curl -X POST https://api.riskstate.ai/v1/risk-state \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"asset": "BTC"}'
@@ -65,7 +65,7 @@ curl -X POST https://riskstate.netlify.app/v1/risk-state \
 **Detailed (with scoring breakdown):**
 
 ```bash
-curl -X POST https://riskstate.netlify.app/v1/risk-state \
+curl -X POST https://api.riskstate.ai/v1/risk-state \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"asset": "BTC", "include_details": true}'
@@ -74,7 +74,7 @@ curl -X POST https://riskstate.netlify.app/v1/risk-state \
 **DeFi monitoring (with wallet + Aave):**
 
 ```bash
-curl -X POST https://riskstate.netlify.app/v1/risk-state \
+curl -X POST https://api.riskstate.ai/v1/risk-state \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"asset": "ETH", "wallet": "0xYOUR_WALLET_ADDRESS", "protocol": "aave", "include_details": true}'
@@ -351,7 +351,7 @@ The API returns the same response regardless of market type. What changes is how
 | **Perps** | Max notional exposure as % of portfolio. Divide by your leverage for margin. | N/A for perps (DeFi only) | `positioning.funding_percentile`, `positioning.squeeze_direction`, `positioning.basis_pct` |
 | **DeFi borrowing** | % of collateral to deploy | Borrowing ratio cap | `defi.health_factor`, `defi.ltv`, `binding_constraint.source` |
 
-> For full context-specific workflows (spot, perps, DeFi, agent integration), see the [main API docs](https://github.com/likidodefi/riskstate-docs/blob/main/docs/api-v1.md#how-to-use-by-context).
+> For full context-specific workflows (spot, perps, DeFi, agent integration), see the [main API docs](https://riskstate.ai/docs/api#how-to-use-by-context).
 
 ## Interpretation Guide
 
@@ -390,7 +390,7 @@ Where `conviction` is your own confidence factor (0–1), whether human or algor
 ### Pre-trade check (agent workflow)
 
 ```
-1. curl -X POST https://riskstate.netlify.app/v1/risk-state \
+1. curl -X POST https://api.riskstate.ai/v1/risk-state \
      -H "Authorization: Bearer $TOKEN" \
      -H "Content-Type: application/json" \
      -d '{"asset": "BTC"}'
@@ -408,7 +408,7 @@ Where `conviction` is your own confidence factor (0–1), whether human or algor
 ### DeFi monitoring
 
 ```bash
-curl -X POST https://riskstate.netlify.app/v1/risk-state \
+curl -X POST https://api.riskstate.ai/v1/risk-state \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"asset": "ETH", "wallet": "0xYOUR_WALLET_ADDRESS_HERE", "include_details": true}'

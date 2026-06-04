@@ -2,10 +2,10 @@
 name: riskstate
 description: Pre-trade risk API for crypto trading agents. Returns exposure limits, allowed/blocked actions, and policy constraints for BTC/USD and ETH/USD from 30+ real-time signals. Spot, perpetual futures (perps), and DeFi borrowing aware. Use when an agent needs to check how much risk is allowed before deploying capital.
 license: Proprietary
-compatibility: Requires network access to riskstate.netlify.app. Works with any agent that can make HTTP POST requests.
+compatibility: Requires network access to api.riskstate.ai. Works with any agent that can make HTTP POST requests.
 metadata:
   author: RiskState
-  version: "1.1.1"
+  version: "1.4.0"
   homepage: "https://riskstate.ai"
 ---
 
@@ -44,7 +44,7 @@ Authorization: Bearer <your_api_key>
 
 ## Security
 
-**API host**: All API calls go to `https://riskstate.netlify.app` (the `/v1/*` endpoints). The `https://riskstate.ai` domain is the landing page only — no API endpoints are served there.
+**API host**: All API calls go to `https://api.riskstate.ai` (the `/v1/*` endpoints). The `https://riskstate.ai` domain is the landing page only — no API endpoints are served there.
 
 **Key types**: Two key tiers exist:
 - **External keys** (`rs_live_*` prefix): For agent/user consumption. Rate-limited to 60 req/min. This is the only key type agents should use.
@@ -57,7 +57,7 @@ Agents MUST only use external keys. Never request or supply owner/admin credenti
 ### Minimal request (BTC)
 
 ```bash
-curl -X POST https://riskstate.netlify.app/v1/risk-state \
+curl -X POST https://api.riskstate.ai/v1/risk-state \
   -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "BTC"}'
@@ -66,7 +66,7 @@ curl -X POST https://riskstate.netlify.app/v1/risk-state \
 ### With scoring breakdown
 
 ```bash
-curl -X POST https://riskstate.netlify.app/v1/risk-state \
+curl -X POST https://api.riskstate.ai/v1/risk-state \
   -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "ETH", "include_details": true}'

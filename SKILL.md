@@ -1,15 +1,15 @@
 ---
 name: riskstate
-version: 1.2.2
+version: 1.4.0
 description: Pre-trade risk API for crypto trading agents. Returns exposure limits, allowed actions, and policy constraints for BTC/USD and ETH/USD from 30+ real-time signals. Spot, perpetual futures (perps), and DeFi borrowing aware.
 category: risk-management
 auth: bearer-token
 env: RISKSTATE_API_KEY
-endpoint: POST https://riskstate.netlify.app/v1/risk-state
+endpoint: POST https://api.riskstate.ai/v1/risk-state
 assets: [BTC, ETH]
 refresh: 60s cache, recommend 5min polling
 homepage: https://riskstate.ai
-docs: https://github.com/likidodefi/riskstate-docs
+docs: https://riskstate.ai/docs/api
 tags: [crypto, ai, bitcoin, trading, ethereum, trading-bot, agents, policy-engine, ai-agents, defi, decentralized-finance, ai-trading, agent-skills, defi-risk-management, risk-governance, skills-sh, perpetual-futures, perps, spot-trading, btc-usd, eth-usd]
 pricing: free-beta
 author: RiskState
@@ -90,7 +90,7 @@ When consuming the response, agents MUST evaluate fields in this order:
 
 ## Security
 
-**API host**: All API calls go to `https://riskstate.netlify.app` (the `/v1/*` endpoints). The `https://riskstate.ai` domain is the landing page only — no API endpoints are served there.
+**API host**: All API calls go to `https://api.riskstate.ai` (the `/v1/*` endpoints). The `https://riskstate.ai` domain is the landing page only — no API endpoints are served there.
 
 **API keys**: All keys have the `rs_live_` prefix and are rate-limited to 60 req/min. Store your key in the `RISKSTATE_API_KEY` environment variable. Do not hardcode keys in source code.
 
@@ -99,7 +99,7 @@ When consuming the response, agents MUST evaluate fields in this order:
 ### Minimal (BTC)
 
 ```bash
-curl -X POST https://riskstate.netlify.app/v1/risk-state \
+curl -X POST https://api.riskstate.ai/v1/risk-state \
   -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "BTC"}'
@@ -108,7 +108,7 @@ curl -X POST https://riskstate.netlify.app/v1/risk-state \
 ### Detailed (with scoring breakdown)
 
 ```bash
-curl -X POST https://riskstate.netlify.app/v1/risk-state \
+curl -X POST https://api.riskstate.ai/v1/risk-state \
   -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "BTC", "include_details": true}'
@@ -117,7 +117,7 @@ curl -X POST https://riskstate.netlify.app/v1/risk-state \
 ### DeFi monitoring (with wallet)
 
 ```bash
-curl -X POST https://riskstate.netlify.app/v1/risk-state \
+curl -X POST https://api.riskstate.ai/v1/risk-state \
   -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "ETH", "wallet": "0xYOUR_WALLET_ADDRESS", "include_details": true}'

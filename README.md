@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://riskstate.netlify.app/v1/risk-state"><img src="https://img.shields.io/badge/API-v1.2.0-blue?style=flat-square" alt="API Version" /></a>
+  <a href="https://api.riskstate.ai/v1/risk-state"><img src="https://img.shields.io/badge/API-v1.2.0-blue?style=flat-square" alt="API Version" /></a>
   <a href="https://riskstate.ai"><img src="https://img.shields.io/badge/status-beta-green?style=flat-square" alt="Status" /></a>
   <a href="#supported-assets"><img src="https://img.shields.io/badge/assets-BTC%2FUSD%20%7C%20ETH%2FUSD-orange?style=flat-square" alt="Assets" /></a>
   <a href="#markets"><img src="https://img.shields.io/badge/markets-spot%20%7C%20perps%20%7C%20DeFi-purple?style=flat-square" alt="Markets" /></a>
@@ -30,7 +30,7 @@ A deterministic engine that converts live market state into **dynamic risk permi
 One API call returns position limits, allowed actions, and policy constraints computed from **30+ real-time signals** across macro, on-chain, derivatives, and DeFi health. The assessment is **USD-denominated**: all scoring is based on BTC/USD and ETH/USD price action, derivatives, and macro conditions.
 
 ```bash
-curl -X POST https://riskstate.netlify.app/v1/risk-state \
+curl -X POST https://api.riskstate.ai/v1/risk-state \
   -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "BTC"}'
@@ -79,7 +79,7 @@ Sign up at [riskstate.ai](https://riskstate.ai) — email only, free during beta
 ### 2. Query the API
 
 ```bash
-curl -X POST https://riskstate.netlify.app/v1/risk-state \
+curl -X POST https://api.riskstate.ai/v1/risk-state \
   -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "BTC"}'
@@ -93,7 +93,7 @@ curl -X POST https://riskstate.netlify.app/v1/risk-state \
 import requests
 
 policy = requests.post(
-    "https://riskstate.netlify.app/v1/risk-state",
+    "https://api.riskstate.ai/v1/risk-state",
     headers={"Authorization": f"Bearer {API_KEY}"},
     json={"asset": "BTC"}
 ).json()
@@ -131,7 +131,7 @@ max_notional = portfolio_value * policy["exposure_policy"]["max_size_fraction"]
 
 ```bash
 # Quick check before placing an order on Binance/Hyperliquid/Aave
-curl -s -X POST https://riskstate.netlify.app/v1/risk-state \
+curl -s -X POST https://api.riskstate.ai/v1/risk-state \
   -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "BTC"}' | jq '{
@@ -187,7 +187,7 @@ npm install @riskstate/mcp-server
 
 Or run directly with `npx @riskstate/mcp-server`. Docker: `ghcr.io/likidodefi/riskstate-mcp`.
 
-One tool: `get_risk_policy` — same parameters as the REST API. Compatible with Claude Desktop, Claude Code, Cursor, and any MCP-compatible client. See [MCP README](https://github.com/likidodefi/RiskState/tree/main/mcp) for full setup.
+One tool: `get_risk_policy` — same parameters as the REST API. Compatible with Claude Desktop, Claude Code, Cursor, and any MCP-compatible client. See [MCP README](https://riskstate.ai/docs/mcp) for full setup.
 
 ## Listed On
 
@@ -242,10 +242,10 @@ Paid tiers coming after beta. [Sign up now](https://riskstate.ai) to lock in ear
 
 - Website: [riskstate.ai](https://riskstate.ai)
 - X/Twitter: [@riskstate_ai](https://x.com/riskstate_ai)
-- API: `POST https://riskstate.netlify.app/v1/risk-state`
+- API: `POST https://api.riskstate.ai/v1/risk-state`
 
 ---
 
 <p align="center">
-  <sub>Built by <a href="https://github.com/likidodefi">likidodefi</a> · © 2026 Digital Venture Asset LLC</sub>
+  <sub>Built by <a href="https://riskstate.ai">RiskState</a> · © 2026 Digital Venture Asset LLC</sub>
 </p>

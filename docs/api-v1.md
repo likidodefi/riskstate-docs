@@ -50,13 +50,15 @@ The endpoint **fails closed**: if the server secret is not configured, all reque
 | `wallet` | string | `null` | Ethereum wallet address (0x...) for DeFi position data. Optional. |
 | `protocol` | string | `"spark"` | DeFi lending protocol. `"spark"` or `"aave"`. Only used when `wallet` is provided. |
 | `include_details` | boolean | `false` | Include expanded scoring details in response. |
+| `reference_time` | number | `now` | Unix seconds. Pins `daysSinceHalving` and the policy hash to a single timestamp, enabling bit-exact reproducibility. Must be in `[halving, now+1d]`. |
+| `allow_degraded` | boolean | `false` | If `false` (default), the endpoint returns **503 Core data unavailable** when any of `price`, `rsi`, `funding` are missing upstream. Set to `true` to receive a degraded policy (with `data_integrity` capped). |
 
 ### Example requests
 
 **Minimal (BTC):**
 
 ```bash
-curl -X POST https://riskstate.netlify.app/v1/risk-state \
+curl -X POST https://api.riskstate.ai/v1/risk-state \
   -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "BTC"}'
@@ -65,7 +67,7 @@ curl -X POST https://riskstate.netlify.app/v1/risk-state \
 **Detailed (with scoring breakdown):**
 
 ```bash
-curl -X POST https://riskstate.netlify.app/v1/risk-state \
+curl -X POST https://api.riskstate.ai/v1/risk-state \
   -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "BTC", "include_details": true}'
@@ -74,7 +76,7 @@ curl -X POST https://riskstate.netlify.app/v1/risk-state \
 **DeFi monitoring (with wallet + Aave):**
 
 ```bash
-curl -X POST https://riskstate.netlify.app/v1/risk-state \
+curl -X POST https://api.riskstate.ai/v1/risk-state \
   -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "ETH", "wallet": "0xYOUR_WALLET_ADDRESS", "protocol": "aave", "include_details": true}'
@@ -87,7 +89,13 @@ curl -X POST https://riskstate.netlify.app/v1/risk-state \
 - `asset` must be `"BTC"` or `"ETH"` (case-insensitive) → 400 otherwise
 - `wallet` must match `^0x[a-fA-F0-9]{40}$` if provided → 400 otherwise
 - `protocol` must be `"spark"` or `"aave"` (case-insensitive) → 400 otherwise
+- `reference_time` must be a finite number in `[new Date('2024-04-20').getTime()/1000, now+86400]` if provided → 400 otherwise
 - Invalid JSON body → 400
+- Core data missing (and `allow_degraded` not set) → **503** with `Retry-After: 30` and body `{ error, missing, sources, retry_after_seconds, hint }`
+
+### Determinism contract (v1.2.0)
+
+The policy hash now includes `api_version`, `scoring_version`, `ts` (from `reference_time`), prices, indicators, **positioning** (funding percentile, OI z-score, squeeze direction), **macro** (regime, coupling, DXY), **volatility** (regime + score), **cycle** (phase, MVRV percentile, boost flag), composite, and policy binding. Given identical inputs and the same `reference_time`, the hash is bit-for-bit identical across requests.
 
 ## Response — Minimal (default)
 
@@ -467,7 +475,7 @@ Where `conviction` is your own confidence factor (0–1), whether human or algor
 ### Pre-trade check (agent workflow)
 
 ```
-1. curl -X POST https://riskstate.netlify.app/v1/risk-state \
+1. curl -X POST https://api.riskstate.ai/v1/risk-state \
      -H "Authorization: Bearer $RISKSTATE_API_KEY" \
      -H "Content-Type: application/json" \
      -d '{"asset": "BTC"}'
@@ -485,7 +493,7 @@ Where `conviction` is your own confidence factor (0–1), whether human or algor
 ### DeFi monitoring
 
 ```bash
-curl -X POST https://riskstate.netlify.app/v1/risk-state \
+curl -X POST https://api.riskstate.ai/v1/risk-state \
   -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "ETH", "wallet": "0xYOUR_WALLET_ADDRESS_HERE", "include_details": true}'
