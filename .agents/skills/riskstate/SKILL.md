@@ -7,6 +7,7 @@ metadata:
   author: RiskState
   version: "1.4.0"
   homepage: "https://riskstate.ai"
+  repository: "https://github.com/likidodefi/riskstate-docs"
 ---
 
 # RiskState — Pre-Trade Risk Layer for Crypto
