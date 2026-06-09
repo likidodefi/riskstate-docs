@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://api.riskstate.ai/v1/risk-state"><img src="https://img.shields.io/badge/API-v1.2.0-blue?style=flat-square" alt="API Version" /></a>
+  <a href="https://api.riskstate.ai/v1/risk-state"><img src="https://img.shields.io/badge/API-v1.4.0-blue?style=flat-square" alt="API Version" /></a>
   <a href="https://riskstate.ai"><img src="https://img.shields.io/badge/status-beta-green?style=flat-square" alt="Status" /></a>
   <a href="#supported-assets"><img src="https://img.shields.io/badge/assets-BTC%2FUSD%20%7C%20ETH%2FUSD-orange?style=flat-square" alt="Assets" /></a>
   <a href="#markets"><img src="https://img.shields.io/badge/markets-spot%20%7C%20perps%20%7C%20DeFi-purple?style=flat-square" alt="Markets" /></a>

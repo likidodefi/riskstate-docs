@@ -2,6 +2,40 @@
 
 All notable changes to the RiskState API will be documented in this file.
 
+## [1.4.0] - 2026-04-22
+
+### Added
+- **Policy combiner refinements (PR3)** — Five additive refinements to `policy_permissions`, all surfaced in the response and the audit `policy_hash`:
+  - **TREND / RANGE weight split** — `TREND` blends 0.65 structural / 0.35 tactical (continuation-led); `RANGE` 0.55 / 0.45 (tactical has more voice). PANIC, EUPHORIA, and SQUEEZE weights unchanged.
+  - **DQ-gated structural veto** — structural veto is skipped when `structural_score.data_quality < 60`, emitting `STRUCTURAL_VETO_SKIPPED_LOW_DQ`. Prevents low-confidence structural reads from overriding clean tactical signals.
+  - **PANIC SHORT override** — PANIC regime exempts SHORT positions from the strong-structural veto (`STRUCTURAL_VETO_SKIPPED_PANIC`), so dead-cat-bounce / fake-breakout setups are not blocked.
+  - **Bucket codes in `reason_codes`** — typed tokens (e.g. `TACTICAL_STRONG_BULL_72`, `STRUCTURAL_WEAK_22`) replace raw scores for downstream classification.
+  - **`shadow_max_size_fraction`** — read-only preview of a candidate combiner-driven sizing rule. Does not bind today; surfaced for offline comparison.
+
+### Changed
+- Policy hash inputs widened to cover the new bucket codes and shadow size — cached hashes from v1.3.0 will not match (one-time invalidation).
+
+## [1.3.0] - 2026-04-21
+
+### Added
+- **Decoupled Structural + Tactical scores + policy combiner (PR2)** — Splits the single composite into two layers that each drive the appropriate decision:
+  - `structural_score` — slow horizon (weeks-months): cycle, supply, demand, macro. `{overall, label, subfamilies, data_quality, source}`.
+  - `tactical_score` — fast horizon (24-72h): positioning pressure, momentum, volume/CVD, derivatives extremity, L/S velocity, whale pressure. `{overall, label, components, signals}`.
+  - `policy_permissions` — context-aware combiner producing `risk_permission_score`, regime-dependent weights, `direction_bias`, `direction_layer` (audit), and `reason_codes`.
+
+### Changed
+- **`exposure_policy.direction_bias` now comes from the combiner** (was composite-tilt). Breaking semantics.
+- `exposure_policy.direction_layer` added — audit field showing which layer drove direction.
+- Existing `composite` retained for backwards compatibility; `max_size_fraction` still driven by the legacy 4-cap engine.
+
+## [1.2.1] - 2026-04-21
+
+### Added
+- **Positioning Pressure Score (PR1)** — continuous 0-100 tactical signal derived from the squeeze scorer (50 = neutral, >50 short-squeeze setup). Wired into BTC and ETH composite as a 9% subscore. Response gains `positioning.positioning_pressure_score` and `positioning.positioning_pressure_net`.
+
+### Changed
+- **ETH issuance recalibration** — asymmetric bands + 7d/30d blend. Mild post-Merge inflation (+0.82%/yr) now scores ~53 (was ~30); hard-downgrade threshold raised to >+2.0%/yr.
+
 ## [1.2.0] - 2026-03-19
 
 ### Added
