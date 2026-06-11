@@ -50,6 +50,8 @@ The endpoint **fails closed**: if the server secret is not configured, all reque
 | `wallet` | string | `null` | Ethereum wallet address (0x...) for DeFi position data. Optional. |
 | `protocol` | string | `"spark"` | DeFi lending protocol. `"spark"` or `"aave"`. Only used when `wallet` is provided. |
 | `include_details` | boolean | `false` | Include expanded scoring details in response. |
+| `reference_time` | number | `now` | Unix seconds. Pins `daysSinceHalving` and the policy hash to a single timestamp, enabling bit-exact reproducibility. Must be in `[halving, now+1d]`. |
+| `allow_degraded` | boolean | `false` | If `false` (default), the endpoint returns **503 Core data unavailable** when any of `price`, `rsi`, `funding` are missing upstream. Set to `true` to receive a degraded policy (with `data_integrity` capped). |
 
 ### Example requests
 
@@ -57,7 +59,7 @@ The endpoint **fails closed**: if the server secret is not configured, all reque
 
 ```bash
 curl -X POST https://api.riskstate.ai/v1/risk-state \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "BTC"}'
 ```
@@ -66,7 +68,7 @@ curl -X POST https://api.riskstate.ai/v1/risk-state \
 
 ```bash
 curl -X POST https://api.riskstate.ai/v1/risk-state \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "BTC", "include_details": true}'
 ```
@@ -75,7 +77,7 @@ curl -X POST https://api.riskstate.ai/v1/risk-state \
 
 ```bash
 curl -X POST https://api.riskstate.ai/v1/risk-state \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "ETH", "wallet": "0xYOUR_WALLET_ADDRESS", "protocol": "aave", "include_details": true}'
 ```
@@ -87,7 +89,13 @@ curl -X POST https://api.riskstate.ai/v1/risk-state \
 - `asset` must be `"BTC"` or `"ETH"` (case-insensitive) → 400 otherwise
 - `wallet` must match `^0x[a-fA-F0-9]{40}$` if provided → 400 otherwise
 - `protocol` must be `"spark"` or `"aave"` (case-insensitive) → 400 otherwise
+- `reference_time` must be a finite number in `[new Date('2024-04-20').getTime()/1000, now+86400]` if provided → 400 otherwise
 - Invalid JSON body → 400
+- Core data missing (and `allow_degraded` not set) → **503** with `Retry-After: 30` and body `{ error, missing, sources, retry_after_seconds, hint }`
+
+### Determinism contract (v1.2.0)
+
+The policy hash now includes `api_version`, `scoring_version`, `ts` (from `reference_time`), prices, indicators, **positioning** (funding percentile, OI z-score, squeeze direction), **macro** (regime, coupling, DXY), **volatility** (regime + score), **cycle** (phase, MVRV percentile, boost flag), composite, and policy binding. Given identical inputs and the same `reference_time`, the hash is bit-for-bit identical across requests.
 
 ## Response — Minimal (default)
 
@@ -141,7 +149,7 @@ Three blocks: **Permissioning**, **Classification**, **Auditability**.
 |-------|------|-------------|
 | `policy_hash` | string | SHA-256 hash of policy inputs for non-repudiation |
 | `scoring_version` | string | `"score_v2"` — scoring algorithm version |
-| `version` | string | `"1.2.0"` — API version |
+| `version` | string | `"1.2.2"` — API version |
 | `timestamp` | string | ISO 8601 timestamp |
 | `asset` | string | Asset evaluated |
 | `cached` | boolean | Whether response was served from cache |
@@ -224,8 +232,14 @@ Binance returns HTTP 451 from Netlify servers. Current CoinGlass tier lacks cert
 |-------|--------------|--------|---------------------|
 | Funding | OKX or BYBIT fallback | Live data via cascading fallback chain. Neutral default (0) only if all fallbacks fail | Dashboard gets real data from browser-side Binance |
 | Open Interest | OKX or BYBIT fallback | Live data via cascading fallback chain. Affects squeeze detection and OI z-score | Dashboard gets real data from browser-side Binance |
-| MVRV | ESTIMATED (~price/$36K) | Accurate to ±5%. Affects cycle phase near thresholds | Dashboard gets real MVRV from blockchain.info |
+| MVRV | ESTIMATED (~price/$53K realized, env-overridable) | Accurate to ±5%. Affects cycle phase near thresholds | Dashboard gets real MVRV from blockchain.info |
 | DXY | LIVE (Frankfurter EUR/USD proxy) | Same formula as dashboard. Affects detectRegime + macro scoring | Dashboard uses same Frankfurter proxy via market-data.js |
+
+### Known Scoring Divergence (disclosed 2026-06-11)
+
+**CVD acceleration (server-side) uses a signed-mean denominator that can overstate "extreme acceleration" in choppy markets.** The dashboard and visualizer were fixed in `score_v3.2` (2026-05-19) to use a magnitude (absolute-mean) denominator; the server-side mirror of this signal — feeding the API's whale-pressure score, the tactical volume component, and Telegram whale alerts — deliberately retains the previous formula until `score_v4`, because changing it alters scoring output and the scoring freeze (until 2026-11-19) prohibits that outside the escape-valve protocol.
+
+Practical impact: in range-bound/alternating-flow conditions the API's whale and tactical-volume readings can register a false "extreme" that the dashboard does not. Snapshot telemetry (v6.5 `shadow_v4.cvd_accel`, June 2026) measures the live divergence per 4h snapshot; the fix ships as part of `score_v4` (V4-6 in `specs/institutional-roadmap-2026H2.md`). Composite, policy level, and `max_size_fraction` are affected only through the whale/volume contributions (≤10% weight each within their layers).
 
 ### API vs Dashboard Classification Alignment (v1.2.0, Mar 19 2026)
 
@@ -343,15 +357,92 @@ All other fields (RSI, daily klines, L/S ratio, CVD, ETF, exchange flow, macro, 
 
 ## How to Use by Context
 
-The API returns the same response regardless of market type. What changes is how you interpret the risk permissions:
+The API returns the same response regardless of how you trade. The **market conditions assessment** (composite score, regime, policy level) is identical. What changes is how you **interpret the risk permissions** for your specific context.
 
-| Market | `max_size_fraction` means | `max_leverage` means | Key detailed fields |
-|--------|--------------------------|----------------------|---------------------|
-| **Spot** | % of portfolio to deploy | N/A (ignore) | `direction_bias`, `structural_blockers` |
-| **Perps** | Max notional exposure as % of portfolio. Divide by your leverage for margin. | N/A for perps (DeFi only) | `positioning.funding_percentile`, `positioning.squeeze_direction`, `positioning.basis_pct` |
-| **DeFi borrowing** | % of collateral to deploy | Borrowing ratio cap | `defi.health_factor`, `defi.ltv`, `binding_constraint.source` |
+### Spot Trading (BTC/USD or ETH/USD)
 
-> For full context-specific workflows (spot, perps, DeFi, agent integration), see the [main API docs](https://riskstate.ai/docs/api#how-to-use-by-context).
+You are buying or selling the asset on a spot exchange (Coinbase, Binance Spot, Kraken, Uniswap, CoW Swap).
+
+**Key fields:**
+- `max_size_fraction` → **% of portfolio to deploy.** If 0.33, allocate up to 33% of your portfolio to this position.
+- `direction_bias` → `LONG_PREFERRED` means "buy signal." `SHORT_PREFERRED` means "don't buy / consider selling." `NEUTRAL` means "no directional edge."
+- `structural_blockers` → If non-empty, do not buy.
+- `allowed_actions` / `blocked_actions` → Filter for relevant actions (DCA, WAIT, LIGHT_ACCUMULATION).
+
+**Ignore for spot:** `max_leverage`, `leverage_allowed`, and leverage-related blocked actions (`LEVERAGE_GT_1X`, `LEVERAGE_GT_2X`). These apply to leveraged markets and DeFi borrowing.
+
+**Pre-trade workflow:**
+1. Call the API with `{"asset": "BTC"}`
+2. Check `structural_blockers` — if non-empty, do not enter
+3. Read `max_size_fraction` — this is your max allocation
+4. Check `direction_bias` — respect the directional guidance
+5. Proceed to your exchange and place the spot order
+
+### Perpetual Futures (Perps)
+
+You are trading BTC/USDT or ETH/USDT perpetuals on Binance Futures, Hyperliquid, dYdX, Bybit, or similar venues.
+
+**Key fields:**
+- `max_size_fraction` → **Max notional exposure as % of portfolio.** If 0.33 and your portfolio is $100K, your max notional is $33K. At 10x leverage, that means max $3.3K margin.
+- `direction_bias` → Directly actionable: `LONG_PREFERRED` favors longs, `SHORT_PREFERRED` favors shorts.
+- `structural_blockers` → If `SQUEEZE_RISK` is present, **do not open leveraged positions** — liquidation risk is elevated.
+
+**Especially relevant for perps (in detailed response):**
+- `positioning.funding_percentile` → How extreme the current funding rate is vs. 30 days. P>85 = paying heavy carry on longs. P<15 = shorts are crowded.
+- `positioning.basis_pct` → Perp-spot premium. Positive = longs dominant, negative = discount.
+- `positioning.squeeze_direction` → UPSIDE (short squeeze probable) or DOWNSIDE (long squeeze probable).
+- `positioning.oi_zscore` → OI z-score vs. 30 days. >2.0 = excessive leverage in the market.
+
+**Margin guide (from `max_size_fraction`):**
+
+| Your leverage | Max margin (% of portfolio) | Example ($100K portfolio, max_size=0.33) |
+|---------------|----------------------------|------------------------------------------|
+| 3x | max_size / 3 = 11.0% | $11,000 margin |
+| 5x | max_size / 5 = 6.6% | $6,600 margin |
+| 10x | max_size / 10 = 3.3% | $3,300 margin |
+| 25x | max_size / 25 = 1.3% | $1,300 margin |
+
+> **Note:** RiskState does not impose a leverage cap for perpetual futures. The `max_leverage` field reflects DeFi borrowing constraints (see below). For perps, the binding constraint is `max_size_fraction` as max notional exposure — you choose your own leverage within that cap.
+
+**Pre-trade workflow (e.g., Hyperliquid):**
+1. Call the API with `{"asset": "BTC", "include_details": true}`
+2. Check `structural_blockers` — if `SQUEEZE_RISK` present, do not open leveraged positions
+3. Read `max_size_fraction` — this is your max notional as % of portfolio
+4. Divide by your intended leverage to get max margin
+5. Check `positioning.funding_percentile` — if P>85, longs are paying heavy carry
+6. Check `positioning.squeeze_direction` — if DOWNSIDE, longs are at risk
+7. Respect `direction_bias` for trade direction
+8. Place your order on the venue
+
+### DeFi Borrowing (Aave, Spark, Morpho)
+
+You borrow stablecoins against BTC or ETH collateral on-chain.
+
+**Key fields:**
+- `max_size_fraction` → **% of collateral to deploy.** Accounts for your current health factor.
+- `max_leverage` → Borrowing ratio cap: `"0x"` (don't borrow), `"1x"`, `"1.5x"`, `"2x"`.
+- `defi.health_factor` → Current health factor (>1 safe, <1.1 danger).
+- `defi.ltv` → Current loan-to-value ratio.
+- `binding_constraint.source` → If `"DEFI"`, your on-chain position is the limiting factor.
+
+**Pre-trade workflow:**
+1. Call the API with `{"asset": "ETH", "wallet": "0xYOUR_WALLET", "protocol": "aave"}`
+2. Check `defi.health_factor` — if <1.5, prioritize adding collateral
+3. If `binding_constraint.source === "DEFI"`, do not increase debt
+4. Respect `max_leverage` for borrowing ratio
+5. If `structural_blockers` contains `DEFI_LIQUIDATION_RISK`, reduce position immediately
+
+### AI Trading Agent Integration
+
+You are building an autonomous trading agent (Hermes, ElizaOS, OpenClaw, AgentKit, custom) that calls the API programmatically.
+
+**See [SKILL.md](SKILL.md) for the complete agent integration guide**, including:
+- Binding precedence (evaluation order for response fields)
+- Decision rules by policy level
+- Failure modes and conservative fallback behavior
+- Example requests
+
+**Key principle:** Call the API **between decision and execution**. Your agent decides what to trade (intelligence layer). RiskState tells it **how much** it can risk (governance layer). Then the agent executes within those bounds.
 
 ## Interpretation Guide
 
@@ -391,7 +482,7 @@ Where `conviction` is your own confidence factor (0–1), whether human or algor
 
 ```
 1. curl -X POST https://api.riskstate.ai/v1/risk-state \
-     -H "Authorization: Bearer $TOKEN" \
+     -H "Authorization: Bearer $RISKSTATE_API_KEY" \
      -H "Content-Type: application/json" \
      -d '{"asset": "BTC"}'
 2. If structural_blockers non-empty → ABORT new entries
@@ -409,7 +500,7 @@ Where `conviction` is your own confidence factor (0–1), whether human or algor
 
 ```bash
 curl -X POST https://api.riskstate.ai/v1/risk-state \
-  -H "Authorization: Bearer $TOKEN" \
+  -H "Authorization: Bearer $RISKSTATE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"asset": "ETH", "wallet": "0xYOUR_WALLET_ADDRESS_HERE", "include_details": true}'
 ```
